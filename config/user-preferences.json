@@ -1,0 +1,57 @@
+{
+  "project": {
+    "mode": "private_experiment",
+    "rights_status": "user_uploaded_source_for_private_testing",
+    "target_language": "en",
+    "target_format": "manga_page",
+    "automation_level": 3,
+    "chapter_scope": "single_chapter_pilot",
+    "human_review": true
+  },
+  "input": {
+    "supported_formats": [
+      "txt",
+      "epub"
+    ]
+  },
+  "visuals": {
+    "style_family": "cinematic manga",
+    "style_notes": "story-first finished manga pages, readable target-language dialogue/captions/SFX, consistent faces, rich expressive page art",
+    "color_mode": "color",
+    "content_rating": "teen"
+  },
+  "comic": {
+    "compression_mode": "standard",
+    "page_count_policy": "story_first_variable",
+    "target_pages": 200,
+    "trim_size": "A4",
+    "page_size_px": {
+      "width": 2480,
+      "height": 3508
+    },
+    "minimum_short_edge_px": 2048,
+    "reading_direction": "left-to-right",
+    "panel_gutter_px": 8
+  },
+  "approvals": {
+    "visual_bible_required": true,
+    "first_chapter_required": true,
+    "after_first_chapter": "chapter",
+    "notify_via": "chat"
+  },
+  "image_generation": {
+    "mode": "half_manual",
+    "tool": "codex_image2",
+    "require_reference_images": true,
+    "finished_page_text": "image2_embedded",
+    "forbid_text_in_finished_pages": false,
+    "fallback_page_art_forbids_text": true,
+    "thumbnail_pass": true
+  },
+  "outputs": {
+    "pdf": true,
+    "cbz": true,
+    "web_reader": false,
+    "print_ready": false
+  }
+}

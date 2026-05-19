@@ -1,0 +1,3 @@
+display_name: Novel To Comic
+short_description: Adapt TXT or EPUB novels into resumable comic-production projects.
+default_prompt: Turn this novel into a comic project using the v0 half-manual image workflow. Start by checking project state and reading config/user-preferences.json.
