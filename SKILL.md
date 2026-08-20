@@ -108,7 +108,7 @@ Every `page-NNN-director-brief.md` must be precise enough for a manga artist/ima
 7. FLUX.2 Klein 4B 本地生图（默认 1024×1536 draft，seed 按 scene 确定），Image QC（PASS/RETRY/MANUAL_REVIEW）+ Targeted Regeneration（max_retry 默认 3，超过转人工）。
 8. 仅 QC PASS 图片用 RealESRGAN_x4plus_anime_6B 4× 放大到 `images/final/`。
 9. scene 级中→英翻译（禁止整本一次翻译再切分）+ `translation/terminology.json` 术语统一。
-10. Kokoro-82M 本地 TTS（默认 af_heart），每 scene 一个 WAV；字幕时间以实际 WAV duration 为准；输出 en/zh/bilingual SRT（默认英文轨，中文必须保留）。
+10. 本地 TTS 生成英文旁白，每 scene 一个 WAV：默认 **IndexTTS-2.5**（零样本克隆 `audio-voice/narrator-reference.wav` 固定旁白音色，并按 scene 的 `emotion` 注入情感）；Kokoro-82M（af_heart）作为备选/音色候选生成器。字幕时间以实际 WAV duration 为准；输出 en/zh/bilingual SRT（默认英文轨，中文必须保留）。生图与 TTS 分两阶段执行，避免 FLUX 与 TTS 同时占用显存。
 11. Scene Manifest（`chapters/chNN/video/scene-manifest.json`）汇总全部对应关系。
 12. **Gate 2（hard）**：Pilot（默认 15 个连续 scene）审核通过后 `approve-pilot` 创建 `PILOT_APPROVED`，才允许整本无人值守生产。
 13. Jianying Exporter：`exports/jianying/<project>/` 可继续编辑的剪映草稿 + `export-report.json`。
@@ -158,6 +158,7 @@ Single scene video pipeline CLI（在 `TOOLS/` 目录下运行）：
 ```bash
 python3 -m novel_to_comic ingest path/to/novel.txt
 python3 TOOLS/check_scenes.py chapters/ch001/narration/scenes.json
+python3 -m novel_to_comic make-voice-samples      # 生成旁白音色候选
 python3 -m novel_to_comic prepare-assets
 python3 -m novel_to_comic approve-assets          # Gate 1
 python3 -m novel_to_comic pilot --chapter ch001

@@ -44,4 +44,8 @@ translation/*
 # Local model weights.
 weights/
 
+# Narrator reference audio is project-specific; keep the guide only.
+audio-voice/*
+!audio-voice/README.md
+
 # Demo assets in docs/assets are original examples and intentionally tracked.

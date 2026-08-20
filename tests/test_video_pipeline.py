@@ -692,9 +692,23 @@ class ConfigAndFixtureTests(unittest.TestCase):
         preferences = load_preferences(ROOT / "config" / "user-preferences.json")
         self.assertEqual(validate_preferences(preferences), [])
         self.assertEqual(preferences["project"]["target_format"], "single_scene")
+        self.assertEqual(preferences["tts"]["provider"], "indextts")
+        self.assertEqual(preferences["tts"]["reference_audio"], "audio-voice/narrator-reference.wav")
         self.assertEqual(preferences["tts"]["voice"], "af_heart")
         self.assertEqual(preferences["upscale"]["model"], "RealESRGAN_x4plus_anime_6B")
         self.assertEqual(preferences["image_generation"]["renderer"], "flux2_klein")
+
+    def test_indextts_provider_requires_reference_audio(self):
+        preferences = load_preferences(ROOT / "config" / "user-preferences.json")
+        preferences["tts"].pop("reference_audio")
+        errors = validate_preferences(preferences)
+        self.assertTrue(any("reference_audio" in error for error in errors))
+
+        # Provider factory must construct without heavy deps (lazy import).
+        from novel_to_comic.tts.base import create_tts
+
+        provider = create_tts("indextts", {"reference_audio": "audio-voice/narrator-reference.wav"})
+        self.assertEqual(provider.name, "indextts")
 
     def test_sample_chinese_fixture_parses(self):
         text = (ROOT / "tests" / "fixtures" / "sample-novel-zh.txt").read_text(encoding="utf-8")

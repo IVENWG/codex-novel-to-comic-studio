@@ -98,7 +98,7 @@ def build_providers(preferences: dict[str, Any]) -> dict[str, Any]:
     )
     tts = create_tts(
         tts_config.get("provider", "mock"),
-        {"voice": tts_config.get("voice"), "language": tts_config.get("language"), "speed": tts_config.get("speed")},
+        {key: value for key, value in tts_config.items() if key != "provider"},
     )
     return {"renderer": renderer, "upscaler": upscaler, "tts": tts}
 
@@ -124,11 +124,42 @@ def process_scene(
     preferences: dict[str, Any],
     providers: dict[str, Any],
 ) -> dict[str, Any]:
-    """Run every pipeline step for one scene; each step skips if already PASS."""
+    """Run every pipeline step for one scene (image phase + audio phase).
+
+    Batch runs should call `run_scenes`, which splits the two phases so the
+    image renderer and the TTS model never occupy the GPU at the same time.
+    """
+    process_scene_image(
+        root, chapter_dir, scene,
+        narration_doc=narration_doc, storyboard_doc=storyboard_doc,
+        ledger=ledger, registry=registry, preferences=preferences, providers=providers,
+    )
+    return process_scene_audio(root, chapter_dir, scene, preferences=preferences, providers=providers)
+
+
+def _update_scene_log(chapter_dir: str | Path, scene_id: str, step: str, value: Any) -> None:
+    path = Path(chapter_dir) / "logs" / f"{scene_id}.json"
+    log = load_json(path) if path.exists() else {"scene_id": scene_id, "started_at": _now(), "steps": {}}
+    log.setdefault("steps", {})[step] = value
+    write_json(path, log)
+
+
+def process_scene_image(
+    root: str | Path,
+    chapter_dir: str | Path,
+    scene: dict[str, Any],
+    *,
+    narration_doc: dict[str, Any],
+    storyboard_doc: dict[str, Any] | None,
+    ledger: dict[str, Any],
+    registry: dict[str, Any],
+    preferences: dict[str, Any],
+    providers: dict[str, Any],
+) -> dict[str, Any]:
+    """Image phase: director brief -> render -> QC retry loop -> upscale."""
     root = Path(root)
     chapter_dir = Path(chapter_dir)
     scene_id = scene["scene_id"]
-    log: dict[str, Any] = {"scene_id": scene_id, "started_at": _now(), "steps": {}}
     manifest = scene_manifest.load_manifest(chapter_dir)
     entry = scene_manifest.get_scene(manifest, scene_id) or {}
 
@@ -155,7 +186,7 @@ def process_scene(
             seed=deterministic_seed(scene_id),
         )
         director.write_director_brief(chapter_dir, brief)
-    log["steps"]["director"] = "ok"
+    _update_scene_log(chapter_dir, scene_id, "director", "ok")
 
     # -- 2. render draft + QC with bounded targeted retries --------------------
     draft_path = chapter_dir / "images" / "draft" / f"{scene_id}.png"
@@ -178,19 +209,19 @@ def process_scene(
                 metadata={"scene_id": scene_id, "attempt": attempt},
             )
             result = providers["renderer"].render(request)
-            log["steps"]["render"] = {"seed": result.seed, "seconds": result.duration_seconds, "attempt": attempt}
+            _update_scene_log(chapter_dir, scene_id, "render", {"seed": result.seed, "seconds": result.duration_seconds, "attempt": attempt})
 
         qc_report = image_qc.qc_scene_image(draft_path, brief, expected_size=expected_size)
         qc_report["attempt"] = attempt
         image_qc.save_qc_report(chapter_dir, qc_report)
         verdict = image_qc.decide_verdict(attempt - 1, max_retry, qc_report)
-        log["steps"]["qc"] = {"verdict": verdict, "attempt": attempt}
+        _update_scene_log(chapter_dir, scene_id, "qc", {"verdict": verdict, "attempt": attempt})
         entry["image_qc"] = verdict
 
         if verdict == "PASS":
             break
         if verdict == "MANUAL_REVIEW":
-            log["steps"]["qc"]["note"] = "max retries exceeded; manual review required"
+            _update_scene_log(chapter_dir, scene_id, "qc_note", "max retries exceeded; manual review required")
             break
         # Targeted regeneration: correct only the broken aspect, never restart from zero.
         correction = image_qc.plan_targeted_regeneration(qc_report)
@@ -212,15 +243,44 @@ def process_scene(
                 scale=int(upscale_config.get("scale", 4)),
                 qc_status="PASS",
             )
-            log["steps"]["upscale"] = {"size": [result.width, result.height], "provider": result.provider}
+            _update_scene_log(chapter_dir, scene_id, "upscale", {"size": [result.width, result.height], "provider": result.provider})
         entry["upscale_status"] = "PASS"
         entry["final_image"] = f"images/final/{scene_id}.png"
     else:
         entry["upscale_status"] = "SKIPPED" if entry.get("image_qc") == "PASS" else "BLOCKED"
 
     entry["draft_image"] = f"images/draft/{scene_id}.png"
+    entry.update(
+        {
+            "scene_id": scene_id,
+            "source_span": scene.get("source_span", ""),
+            "zh_text": scene.get("zh_narration", ""),
+            "zh_subtitle": scene.get("zh_narration", ""),
+            "character_states": scene.get("character_states", []),
+            "setting_id": scene.get("setting_id", ""),
+            "asset_refs": [ref["asset_id"] for ref in brief.get("references", [])],
+        }
+    )
+    scene_manifest.upsert_scene(manifest, entry)
+    scene_manifest.save_manifest(chapter_dir, manifest)
+    return entry
 
-    # -- 4. translation (scene-level zh -> en) ----------------------------------
+
+def process_scene_audio(
+    root: str | Path,
+    chapter_dir: str | Path,
+    scene: dict[str, Any],
+    *,
+    preferences: dict[str, Any],
+    providers: dict[str, Any],
+) -> dict[str, Any]:
+    """Audio phase: scene-level translation -> TTS (renderer already released)."""
+    chapter_dir = Path(chapter_dir)
+    scene_id = scene["scene_id"]
+    manifest = scene_manifest.load_manifest(chapter_dir)
+    entry = scene_manifest.get_scene(manifest, scene_id) or {"scene_id": scene_id}
+
+    # -- translation (scene-level zh -> en) ----------------------------------
     translation_entry = translation.load_scene_translation(chapter_dir, scene_id)
     translation_provider = preferences.get("translation", {}).get("provider", "agent")
     if translation_entry is None and translation_provider == "mock":
@@ -236,12 +296,12 @@ def process_scene(
     if translation_entry and translation_entry.get("status") == "PASS":
         entry["translation_status"] = "PASS"
         entry["en_text"] = translation_entry.get("en_text", "")
-        log["steps"]["translation"] = "ok"
+        _update_scene_log(chapter_dir, scene_id, "translation", "ok")
     else:
         entry["translation_status"] = "WAITING"
-        log["steps"]["translation"] = "waiting for agent translation"
+        _update_scene_log(chapter_dir, scene_id, "translation", "waiting for agent translation")
 
-    # -- 5. TTS (scene-level WAV) ------------------------------------------------
+    # -- TTS (scene-level WAV) ------------------------------------------------
     audio_path = chapter_dir / "audio" / f"{scene_id}.wav"
     if entry.get("translation_status") == "PASS":
         if not audio_path.exists():
@@ -254,9 +314,10 @@ def process_scene(
                     voice=tts_config.get("voice", "af_heart"),
                     speed=float(tts_config.get("speed", 1.0)),
                     language=tts_config.get("language", "en-us"),
+                    metadata={"emotion": scene.get("emotion", "")},
                 )
             )
-            log["steps"]["tts"] = {"duration": tts_result.duration, "voice": tts_result.voice}
+            _update_scene_log(chapter_dir, scene_id, "tts", {"duration": tts_result.duration, "voice": tts_result.voice})
         sidecar = load_json(audio_path.with_suffix(".json"))
         entry["tts_status"] = "PASS"
         entry["audio"] = f"audio/{scene_id}.wav"
@@ -264,24 +325,10 @@ def process_scene(
     else:
         entry["tts_status"] = "WAITING"
 
-    # -- 6. manifest + log ---------------------------------------------------------
-    entry.update(
-        {
-            "scene_id": scene_id,
-            "source_span": scene.get("source_span", ""),
-            "zh_text": scene.get("zh_narration", ""),
-            "zh_subtitle": scene.get("zh_narration", ""),
-            "en_subtitle": entry.get("en_text", ""),
-            "character_states": scene.get("character_states", []),
-            "setting_id": scene.get("setting_id", ""),
-            "asset_refs": [ref["asset_id"] for ref in brief.get("references", [])],
-        }
-    )
+    entry["en_subtitle"] = entry.get("en_text", "")
     scene_manifest.upsert_scene(manifest, entry)
     scene_manifest.save_manifest(chapter_dir, manifest)
-
-    log["finished_at"] = _now()
-    write_json(chapter_dir / "logs" / f"{scene_id}.json", log)
+    _update_scene_log(chapter_dir, scene_id, "finished_at", _now())
     return entry
 
 
@@ -323,22 +370,39 @@ def run_scenes(
             break
 
     providers = build_providers(preferences) if targets else {}
+    renderer = providers.get("renderer")
+    upscaler = providers.get("upscaler")
+    tts = providers.get("tts")
+
+    # Phase A (image): renderer + upscaler stay resident for the whole pass.
     try:
-        for provider in providers.values():
-            if hasattr(provider, "warm"):
-                provider.warm()
-        processed: list[str] = []
+        if renderer is not None:
+            renderer.warm()
+        if upscaler is not None:
+            upscaler.warm()
         for scene in targets:
-            process_scene(
+            process_scene_image(
                 root, chapter_dir, scene,
                 narration_doc=narration_doc, storyboard_doc=storyboard_doc,
                 ledger=ledger, registry=registry, preferences=preferences, providers=providers,
             )
+    finally:
+        # Free VRAM before the TTS phase: FLUX and IndexTTS must not share the GPU.
+        for provider in (renderer, upscaler):
+            if provider is not None:
+                provider.release()
+
+    # Phase B (audio): translation + TTS, model resident for the whole pass.
+    processed: list[str] = []
+    try:
+        if tts is not None:
+            tts.warm()
+        for scene in targets:
+            process_scene_audio(root, chapter_dir, scene, preferences=preferences, providers=providers)
             processed.append(scene["scene_id"])
     finally:
-        for provider in providers.values():
-            if hasattr(provider, "release"):
-                provider.release()
+        if tts is not None:
+            tts.release()
 
     _finalize_chapter(root, chapter_dir, preferences, processed)
     return {"chapter": chapter, "processed": processed, "skipped_pass": len(narration_doc.get("scenes", [])) - len(targets)}

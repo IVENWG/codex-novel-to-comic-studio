@@ -17,11 +17,14 @@ description: Produce the video half of single_scene - per-scene English translat
 
 术语统一：维护 `translation/terminology.json`（characters / locations / skills / organizations / props / titles）。整本小说同一个名字禁止出现多个英文译法。
 
-## TTS（Kokoro-82M，本地，scene 级）
+## TTS（默认 IndexTTS-2.5，本地，scene 级）
 
-- 默认 `hexgrad/Kokoro-82M`、American English、voice `af_heart`（可配置，默认不变）。
+- 默认 `IndexTeam/IndexTTS-2.5`：零样本克隆 `audio-voice/narrator-reference.wav`（5~10 秒）固定全书旁白音色；音色选法见 `audio-voice/README.md`（可用 `make-voice-samples` 生成 Kokoro 候选音色）。
+- 情感注入：每个 scene 的 `emotion` 字段自动传给 IndexTTS（文本驱动情感，`emo_alpha` 默认 0.6）。
+- 语速：`tts.speed` 映射到 `duration_factor`（0.5x~2.0x）。
+- Kokoro-82M（af_heart）为备选 provider，也用于生成音色候选；provider 在配置 `tts.provider` 切换。
 - 每个 scene 单独生成 `audio/scene_NNNN.wav` + sidecar json（scene_id、en_text、voice、speed、duration、audio_path、sample_rate、word timestamps 若有）。
-- 禁止整章一次生成超长 WAV。批量期间模型保持驻留。
+- 禁止整章一次生成超长 WAV。批量期间模型保持驻留；生图阶段结束后先释放 FLUX 再预热 TTS，两者不同时占显存。
 
 ## 字幕
 
@@ -51,4 +54,4 @@ python3 -m novel_to_comic approve-pilot
 python3 -m novel_to_comic export-jianying --chapter chNN
 ```
 
-第一版保持简单：图片铺满（保持比例）、英文字幕轨、Kokoro 音频、scene 顺序排列；图片时长 = 对应 TTS 实际时长。不加随机特效——镜头变化来自 Director + 生图。中文 SRT 完整保留在 `exports/`。输出 `exports/jianying/<project>/draft_content.json` + `draft_meta_info.json` + `export-report.json`。
+第一版保持简单：图片铺满（保持比例）、英文字幕轨、Kokoro/IndexTTS 音频、scene 顺序排列；图片时长 = 对应 TTS 实际时长。不加随机特效——镜头变化来自 Director + 生图。中文 SRT 完整保留在 `exports/`。输出 `exports/jianying/<project>/draft_content.json` + `draft_meta_info.json` + `export-report.json`。

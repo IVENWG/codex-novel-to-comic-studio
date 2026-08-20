@@ -123,6 +123,10 @@ def create_tts(name: str, options: dict[str, Any] | None = None) -> BaseTTS:
         from .kokoro import KokoroTTS
 
         return KokoroTTS(**options)
+    if name == "indextts":
+        from .indextts import IndexTTSTTS
+
+        return IndexTTSTTS(**options)
     if name == "mock":
         from .mock import MockTTS
 

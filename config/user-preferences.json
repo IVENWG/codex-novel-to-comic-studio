@@ -70,8 +70,13 @@
     "terminology_path": "translation/terminology.json"
   },
   "tts": {
-    "provider": "kokoro",
-    "model": "hexgrad/Kokoro-82M",
+    "provider": "indextts",
+    "model": "IndexTeam/IndexTTS-2.5",
+    "reference_audio": "audio-voice/narrator-reference.wav",
+    "use_fp16": true,
+    "use_scene_emotion": true,
+    "emo_alpha": 0.6,
+    "fallback_provider": "kokoro",
     "language": "en-us",
     "voice": "af_heart",
     "speed": 1.0,

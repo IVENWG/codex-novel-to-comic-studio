@@ -95,7 +95,7 @@ python3 TOOLS/check_state.py .
 - 分镜按 story/visual beat，禁止固定句数切割；一个 beat = 一张独立图，禁止网格。
 - 人物一致性靠 Asset Registry + Asset Lock + Continuity Ledger，不靠模型自己记住人物；不变量（脸/发/体型/疤痕）与变量（表情/姿势/服装/伤势）分开。
 - 本地 FLUX.2 Klein 4B 生图（1024×1536 draft），不依赖 ComfyUI 和云 API；仅 QC PASS 图用 RealESRGAN_x4plus_anime_6B 4× 放大。
-- 翻译 scene 级进行（禁止整本一次翻译再切分）；Kokoro-82M 本地 TTS 默认 af_heart，每 scene 一个 WAV；字幕时间以实际 WAV 时长为准；英文字幕默认、中文字幕必须保留。
+- 翻译 scene 级进行（禁止整本一次翻译再切分）；英文旁白默认用本地 IndexTTS-2.5（克隆 `audio-voice/narrator-reference.wav` 固定音色，按 scene `emotion` 注入情感），Kokoro-82M af_heart 备选；每 scene 一个 WAV；字幕时间以实际 WAV 时长为准；英文字幕默认、中文字幕必须保留。生图与 TTS 分两阶段执行，FLUX 与 TTS 不同时占用显存。
 - 两个硬 Gate：`STYLE_APPROVED` + `REFERENCE_ASSETS_APPROVED` 缺失禁止批量生图；`PILOT_APPROVED` 缺失禁止整本生产。LOCKED canonical asset 禁止普通流程覆盖。
 - 断点续跑：已全 PASS 的 scene 绝不重做；失败后重跑从第一个未完成 scene 继续；单 scene 用 `python3 -m novel_to_comic regenerate scene_NNNN --chapter chNN --image`。
 - CLI：`python3 -m novel_to_comic ingest|status|prepare-assets|approve-assets|pilot|approve-pilot|run|regenerate|export-jianying`（在 `TOOLS/` 下运行）。

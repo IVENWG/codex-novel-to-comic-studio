@@ -53,13 +53,14 @@ AI image models can now draw richly detailed comic pages, but good comics are no
 - Continuity ledger resolved before rendering (outfits, injuries, weapons persist until explicitly cleared)
 - Single-scene director briefs with labeled references (image 1 = identity, image 2 = outfit, image 3 = environment, image 4 = style) and camera variation
 - Draft renders at 1024×1536, QC (PASS / RETRY / MANUAL_REVIEW) with bounded targeted regeneration, then 4× **RealESRGAN_x4plus_anime_6B** upscale for PASS images only
-- Scene-level zh→en translation with terminology control; local **Kokoro-82M** TTS (default voice `af_heart`), one WAV per scene
+- Scene-level zh→en translation with terminology control; English narration via local **IndexTTS-2.5** (zero-shot clone of one locked narrator reference clip, per-scene emotion injection; see `audio-voice/README.md`), with **Kokoro-82M** (`af_heart`) as the fallback provider; one WAV per scene
 - English (default) + Chinese + bilingual SRT subtitles timed to real audio durations; scene manifest keyed by `scene_id`
 - Two hard approval gates (visual assets, pilot) then unattended batch production; fully resumable, per-scene regeneration
 
 ```bash
 cd TOOLS
 python3 -m novel_to_comic ingest ../source/my-book.txt
+python3 -m novel_to_comic make-voice-samples    # pick the narrator voice for IndexTTS
 python3 -m novel_to_comic approve-assets        # Gate 1 (after human review)
 python3 -m novel_to_comic pilot --chapter ch001
 python3 -m novel_to_comic approve-pilot         # Gate 2 (after human review)
@@ -67,7 +68,7 @@ python3 -m novel_to_comic run --chapter ch001
 python3 -m novel_to_comic export-jianying --chapter ch001
 ```
 
-Optional GPU dependencies (install on the rendering machine): `torch`, `diffusers` (FLUX.2 Klein 4B), `kokoro` + `soundfile` (TTS), `realesrgan` (upscale). Mock providers keep the whole pipeline testable without a GPU.
+Optional GPU dependencies (install on the rendering machine): `torch`, `diffusers` (FLUX.2 Klein 4B), `index-tts` (IndexTTS-2.5 narrator cloning), `kokoro` + `soundfile` (fallback TTS / voice candidates), `realesrgan` (upscale). Mock providers keep the whole pipeline testable without a GPU.
 
 ## Install For Codex
 

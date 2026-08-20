@@ -113,6 +113,49 @@ def cmd_export_jianying(args: argparse.Namespace) -> int:
     return 0 if not report.get("manifest_errors") else 1
 
 
+DEFAULT_VOICE_CANDIDATES = ["af_heart", "af_nicole", "af_bella", "af_sarah", "am_michael", "am_echo"]
+
+DEFAULT_SAMPLE_TEXT = (
+    "Rain hammered the old town as the stranger pushed open the tea house door. "
+    "Nobody knew his name, but everyone remembered the long bundle wrapped in cloth at his side. "
+    "That night, the story of the sword began."
+)
+
+
+def cmd_make_voice_samples(args: argparse.Namespace) -> int:
+    """Generate narrator voice candidates (via Kokoro) to pick an IndexTTS
+    reference clip from. Listen, choose one, trim 5-10s and save it as
+    audio-voice/narrator-reference.wav (see audio-voice/README.md)."""
+    from .tts.base import TTSRequest, create_tts
+
+    voices = [voice.strip() for voice in args.voices.split(",") if voice.strip()] or DEFAULT_VOICE_CANDIDATES
+    out_dir = Path(args.root) / "audio-voice" / "candidates"
+    tts = create_tts("kokoro", {})
+    written: list[str] = []
+    for voice in voices:
+        out_path = out_dir / f"{voice}.wav"
+        tts.synthesize(
+            TTSRequest(
+                scene_id=f"voice-{voice}",
+                text=args.text,
+                output_path=str(out_path),
+                voice=voice,
+            )
+        )
+        written.append(str(out_path))
+    _print(
+        {
+            "samples": written,
+            "next_steps": [
+                "Listen to audio-voice/candidates/*.wav and pick the best storyteller voice.",
+                "Trim a clean 5-10s segment (no music/noise) and save it as audio-voice/narrator-reference.wav.",
+                "IndexTTS-2.5 will clone that timbre for every scene of the whole novel.",
+            ],
+        }
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="novel_to_comic", description="Novel -> English comic explainer video pipeline")
     parser.add_argument("--root", default=".", help="Project root directory")
@@ -162,6 +205,11 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--chapter", required=True)
     export.add_argument("--project-name", default=None)
     export.set_defaults(func=cmd_export_jianying)
+
+    voices = sub.add_parser("make-voice-samples", help="Generate narrator voice candidates (Kokoro)")
+    voices.add_argument("--voices", default=",".join(DEFAULT_VOICE_CANDIDATES), help="Comma-separated Kokoro voice ids")
+    voices.add_argument("--text", default=DEFAULT_SAMPLE_TEXT, help="Storytelling sample sentence")
+    voices.set_defaults(func=cmd_make_voice_samples)
 
     return parser
 

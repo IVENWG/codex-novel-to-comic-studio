@@ -9,5 +9,10 @@ Pillow>=10.0
 # Kokoro-82M English TTS (default voice af_heart):
 #   pip install kokoro soundfile
 #
+# IndexTTS-2.5 narrator cloning TTS (default provider; needs a reference clip,
+# see audio-voice/README.md):
+#   git clone https://github.com/index-tts/index-tts && pip install -e index-tts
+#   # weights: huggingface.co/IndexTeam/IndexTTS-2.5 into checkpoints/
+#
 # Real-ESRGAN 4x upscale (RealESRGAN_x4plus_anime_6B):
 #   pip install realesrgan

@@ -18,7 +18,7 @@ PAGE_COUNT_POLICIES = {"story_first_variable", "fixed_budget", "soft_target"}
 FINISHED_PAGE_TEXT_MODES = {"image2_embedded", "deterministic_lettering_fallback"}
 RENDERERS = {"flux2_klein", "mock"}
 UPSCALER_PROVIDERS = {"realesrgan", "mock"}
-TTS_PROVIDERS = {"kokoro", "mock"}
+TTS_PROVIDERS = {"kokoro", "indextts", "mock"}
 TRANSLATION_PROVIDERS = {"agent", "mock"}
 SEED_POLICIES = {"deterministic_by_scene", "random"}
 
@@ -164,11 +164,15 @@ def _validate_single_scene_sections(preferences: dict[str, Any]) -> list[str]:
         errors.append("tts must be an object")
     else:
         if tts.get("provider") not in TTS_PROVIDERS:
-            errors.append("tts.provider must be kokoro or mock")
+            errors.append("tts.provider must be kokoro, indextts, or mock")
         if not isinstance(tts.get("voice"), str) or not tts["voice"]:
             errors.append("tts.voice must be a non-empty string (default af_heart)")
         if tts.get("output_format") != "wav":
             errors.append("tts.output_format must be wav")
+        if tts.get("provider") == "indextts":
+            reference_audio = tts.get("reference_audio")
+            if not isinstance(reference_audio, str) or not reference_audio.strip():
+                errors.append("tts.reference_audio is required for indextts (narrator reference clip)")
 
     subs = preferences.get("subtitles")
     if not isinstance(subs, dict):
