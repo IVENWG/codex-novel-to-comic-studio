@@ -44,6 +44,31 @@ AI image models can now draw richly detailed comic pages, but good comics are no
 11. **QC loop**: fix story, continuity, text, layout, and image issues page by page.
 12. **Bind**: export PDF + CBZ.
 
+## Single Scene Video Pipeline（中文小说 → 英文漫画解说视频 → 剪映草稿）
+
+`target_format = "single_scene"` is the video production mode: one visual story beat = one standalone comic image, narrated in English and assembled as an editable Jianying (剪映) draft.
+
+- Chinese narration script per scene, planned by story/visual beats (never fixed sentence quotas)
+- Asset registry + asset lock: canonical identity / wardrobe / setting / prop assets generated with local **FLUX.2 Klein 4B** and locked after approval
+- Continuity ledger resolved before rendering (outfits, injuries, weapons persist until explicitly cleared)
+- Single-scene director briefs with labeled references (image 1 = identity, image 2 = outfit, image 3 = environment, image 4 = style) and camera variation
+- Draft renders at 1024×1536, QC (PASS / RETRY / MANUAL_REVIEW) with bounded targeted regeneration, then 4× **RealESRGAN_x4plus_anime_6B** upscale for PASS images only
+- Scene-level zh→en translation with terminology control; local **Kokoro-82M** TTS (default voice `af_heart`), one WAV per scene
+- English (default) + Chinese + bilingual SRT subtitles timed to real audio durations; scene manifest keyed by `scene_id`
+- Two hard approval gates (visual assets, pilot) then unattended batch production; fully resumable, per-scene regeneration
+
+```bash
+cd TOOLS
+python3 -m novel_to_comic ingest ../source/my-book.txt
+python3 -m novel_to_comic approve-assets        # Gate 1 (after human review)
+python3 -m novel_to_comic pilot --chapter ch001
+python3 -m novel_to_comic approve-pilot         # Gate 2 (after human review)
+python3 -m novel_to_comic run --chapter ch001
+python3 -m novel_to_comic export-jianying --chapter ch001
+```
+
+Optional GPU dependencies (install on the rendering machine): `torch`, `diffusers` (FLUX.2 Klein 4B), `kokoro` + `soundfile` (TTS), `realesrgan` (upscale). Mock providers keep the whole pipeline testable without a GPU.
+
 ## Install For Codex
 
 Clone the repository:

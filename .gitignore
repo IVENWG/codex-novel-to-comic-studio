@@ -18,6 +18,8 @@ output/*
 !output/.gitkeep
 logs/*
 !logs/.gitkeep
+exports/*
+!exports/.gitkeep
 
 # Visual bibles often contain generated character/setting references tied to a source.
 visual-bible/*
@@ -31,5 +33,15 @@ visual-bible/characters/*
 !visual-bible/settings/
 visual-bible/settings/*
 !visual-bible/settings/.gitkeep
+!visual-bible/props/
+visual-bible/props/*
+!visual-bible/props/.gitkeep
+
+# Terminology maps are project-specific derivative data.
+translation/*
+!translation/.gitkeep
+
+# Local model weights.
+weights/
 
 # Demo assets in docs/assets are original examples and intentionally tracked.

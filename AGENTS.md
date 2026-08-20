@@ -84,3 +84,18 @@ python3 TOOLS/check_state.py .
 ## 失败处理
 
 失败先记录到 `logs/`。单章失败只重做该章；单页失败优先重做该页；不要从头推翻整本项目。
+
+## single_scene 视频流水线（当前默认 target_format）
+
+目标：【中文小说 → 英文漫画解说视频 → 剪映草稿】。完整契约见 `SKILL.md` 的 Single Scene Video Pipeline 段和 `SKILLS/narration-adapter|scene-planner|asset-producer|single-scene-director|video-producer`。
+
+关键约束：
+
+- `scene_id`（scene_NNNN）是唯一主键：中文解说 → 英文解说 → 图片 → QC → upscale → TTS → 字幕 → 剪映时间线严格一一对应，禁止文件名排序推断。
+- 分镜按 story/visual beat，禁止固定句数切割；一个 beat = 一张独立图，禁止网格。
+- 人物一致性靠 Asset Registry + Asset Lock + Continuity Ledger，不靠模型自己记住人物；不变量（脸/发/体型/疤痕）与变量（表情/姿势/服装/伤势）分开。
+- 本地 FLUX.2 Klein 4B 生图（1024×1536 draft），不依赖 ComfyUI 和云 API；仅 QC PASS 图用 RealESRGAN_x4plus_anime_6B 4× 放大。
+- 翻译 scene 级进行（禁止整本一次翻译再切分）；Kokoro-82M 本地 TTS 默认 af_heart，每 scene 一个 WAV；字幕时间以实际 WAV 时长为准；英文字幕默认、中文字幕必须保留。
+- 两个硬 Gate：`STYLE_APPROVED` + `REFERENCE_ASSETS_APPROVED` 缺失禁止批量生图；`PILOT_APPROVED` 缺失禁止整本生产。LOCKED canonical asset 禁止普通流程覆盖。
+- 断点续跑：已全 PASS 的 scene 绝不重做；失败后重跑从第一个未完成 scene 继续；单 scene 用 `python3 -m novel_to_comic regenerate scene_NNNN --chapter chNN --image`。
+- CLI：`python3 -m novel_to_comic ingest|status|prepare-assets|approve-assets|pilot|approve-pilot|run|regenerate|export-jianying`（在 `TOOLS/` 下运行）。

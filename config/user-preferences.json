@@ -3,7 +3,7 @@
     "mode": "private_experiment",
     "rights_status": "user_uploaded_source_for_private_testing",
     "target_language": "en",
-    "target_format": "manga_page",
+    "target_format": "single_scene",
     "automation_level": 3,
     "chapter_scope": "single_chapter_pilot",
     "human_review": true
@@ -37,7 +37,9 @@
     "visual_bible_required": true,
     "first_chapter_required": true,
     "after_first_chapter": "chapter",
-    "notify_via": "chat"
+    "notify_via": "chat",
+    "visual_assets_required": true,
+    "pilot_required": true
   },
   "image_generation": {
     "mode": "half_manual",
@@ -46,7 +48,51 @@
     "finished_page_text": "image2_embedded",
     "forbid_text_in_finished_pages": false,
     "fallback_page_art_forbids_text": true,
-    "thumbnail_pass": true
+    "thumbnail_pass": true,
+    "renderer": "flux2_klein",
+    "model": "black-forest-labs/FLUX.2-klein-4B",
+    "mode_note": "single_scene draft",
+    "width": 1024,
+    "height": 1536,
+    "device": "cuda",
+    "steps": 28,
+    "seed_policy": "deterministic_by_scene"
+  },
+  "upscale": {
+    "enabled": true,
+    "provider": "realesrgan",
+    "model": "RealESRGAN_x4plus_anime_6B",
+    "scale": 4,
+    "only_after_qc_pass": true
+  },
+  "translation": {
+    "provider": "agent",
+    "terminology_path": "translation/terminology.json"
+  },
+  "tts": {
+    "provider": "kokoro",
+    "model": "hexgrad/Kokoro-82M",
+    "language": "en-us",
+    "voice": "af_heart",
+    "speed": 1.0,
+    "device": "auto",
+    "output_format": "wav"
+  },
+  "subtitles": {
+    "default_language": "en",
+    "keep_chinese": true,
+    "generate_bilingual": true,
+    "bilingual_order": [
+      "en",
+      "zh"
+    ]
+  },
+  "qc": {
+    "max_retry": 3,
+    "strict_without_vlm": false
+  },
+  "pilot": {
+    "scene_count": 15
   },
   "outputs": {
     "pdf": true,

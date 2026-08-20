@@ -1,1 +1,13 @@
 Pillow>=10.0
+
+# Optional GPU stack for the single_scene video pipeline (install on the
+# rendering machine; mock providers work without any of these):
+#
+# FLUX.2 Klein 4B local rendering:
+#   pip install torch diffusers transformers accelerate sentencepiece protobuf
+#
+# Kokoro-82M English TTS (default voice af_heart):
+#   pip install kokoro soundfile
+#
+# Real-ESRGAN 4x upscale (RealESRGAN_x4plus_anime_6B):
+#   pip install realesrgan

@@ -12,10 +12,15 @@ TRIM_SIZES = {"B5", "A4", "manga-standard"}
 COMPRESSION_MODES = {"essence", "standard", "complete"}
 APPROVAL_MODES = {"chapter", "every_n_chapters", "auto_after_first"}
 PROJECT_MODES = {"private_experiment", "licensed_commercial", "public_domain"}
-TARGET_FORMATS = {"manga_page", "color_comic", "webtoon", "storyboard_only"}
+TARGET_FORMATS = {"manga_page", "color_comic", "webtoon", "storyboard_only", "single_scene"}
 AUTOMATION_LEVELS = {1, 2, 3}
 PAGE_COUNT_POLICIES = {"story_first_variable", "fixed_budget", "soft_target"}
 FINISHED_PAGE_TEXT_MODES = {"image2_embedded", "deterministic_lettering_fallback"}
+RENDERERS = {"flux2_klein", "mock"}
+UPSCALER_PROVIDERS = {"realesrgan", "mock"}
+TTS_PROVIDERS = {"kokoro", "mock"}
+TRANSLATION_PROVIDERS = {"agent", "mock"}
+SEED_POLICIES = {"deterministic_by_scene", "random"}
 
 
 def load_preferences(path: str | Path) -> dict[str, Any]:
@@ -119,5 +124,81 @@ def validate_preferences(preferences: dict[str, Any]) -> list[str]:
 
         if not isinstance(image_generation.get("fallback_page_art_forbids_text"), bool):
             errors.append("image_generation.fallback_page_art_forbids_text must be a boolean")
+
+    target_format = (preferences.get("project") or {}).get("target_format")
+    if target_format == "single_scene":
+        errors.extend(_validate_single_scene_sections(preferences))
+
+    return errors
+
+
+def _validate_single_scene_sections(preferences: dict[str, Any]) -> list[str]:
+    """Validation for the single_scene video pipeline config sections."""
+    errors: list[str] = []
+
+    image_generation = preferences.get("image_generation") or {}
+    if image_generation.get("renderer") not in RENDERERS:
+        errors.append("image_generation.renderer must be flux2_klein or mock")
+    width = image_generation.get("width")
+    height = image_generation.get("height")
+    if not isinstance(width, int) or not isinstance(height, int) or width < 512 or height < 512:
+        errors.append("image_generation.width/height must be integers >= 512")
+    if image_generation.get("seed_policy") not in SEED_POLICIES:
+        errors.append("image_generation.seed_policy must be deterministic_by_scene or random")
+    if not isinstance(image_generation.get("require_reference_images"), bool):
+        errors.append("image_generation.require_reference_images must be a boolean")
+
+    upscale = preferences.get("upscale")
+    if not isinstance(upscale, dict):
+        errors.append("upscale must be an object")
+    else:
+        if upscale.get("provider") not in UPSCALER_PROVIDERS:
+            errors.append("upscale.provider must be realesrgan or mock")
+        if not isinstance(upscale.get("scale"), int) or upscale["scale"] < 1:
+            errors.append("upscale.scale must be a positive integer")
+        if upscale.get("only_after_qc_pass") is not True:
+            errors.append("upscale.only_after_qc_pass must be true")
+
+    tts = preferences.get("tts")
+    if not isinstance(tts, dict):
+        errors.append("tts must be an object")
+    else:
+        if tts.get("provider") not in TTS_PROVIDERS:
+            errors.append("tts.provider must be kokoro or mock")
+        if not isinstance(tts.get("voice"), str) or not tts["voice"]:
+            errors.append("tts.voice must be a non-empty string (default af_heart)")
+        if tts.get("output_format") != "wav":
+            errors.append("tts.output_format must be wav")
+
+    subs = preferences.get("subtitles")
+    if not isinstance(subs, dict):
+        errors.append("subtitles must be an object")
+    else:
+        if subs.get("default_language") not in {"en", "zh"}:
+            errors.append("subtitles.default_language must be en or zh")
+        if not isinstance(subs.get("keep_chinese"), bool):
+            errors.append("subtitles.keep_chinese must be a boolean")
+        if not isinstance(subs.get("generate_bilingual"), bool):
+            errors.append("subtitles.generate_bilingual must be a boolean")
+
+    translation_config = preferences.get("translation")
+    if not isinstance(translation_config, dict):
+        errors.append("translation must be an object")
+    elif translation_config.get("provider") not in TRANSLATION_PROVIDERS:
+        errors.append("translation.provider must be agent or mock")
+
+    pilot = preferences.get("pilot")
+    if not isinstance(pilot, dict):
+        errors.append("pilot must be an object")
+    else:
+        scene_count = pilot.get("scene_count")
+        if not isinstance(scene_count, int) or not 5 <= scene_count <= 40:
+            errors.append("pilot.scene_count must be an integer between 5 and 40")
+
+    approvals = preferences.get("approvals") or {}
+    if approvals.get("visual_assets_required") is not True:
+        errors.append("approvals.visual_assets_required must be true for single_scene")
+    if approvals.get("pilot_required") is not True:
+        errors.append("approvals.pilot_required must be true for single_scene")
 
     return errors

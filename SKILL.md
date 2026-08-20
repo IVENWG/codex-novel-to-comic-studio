@@ -93,6 +93,28 @@ Every `page-NNN-director-brief.md` must be precise enough for a manga artist/ima
 - **Image2 prompt block**: a final copy-ready prompt that includes the reference locks, page layout, all panel directives, exact text, and negative constraints.
 - **QC checklist**: story clarity, panel readability, character consistency, correct text, no wrong extra text, and no face/action obstruction.
 
+## Single Scene Video Pipeline（核心新模式）
+
+`target_format = "single_scene"` 是视频生产主线：【中文小说 → 英文漫画解说视频 → 剪映草稿】。一个视觉剧情 Beat = 一张独立漫画图片（禁止网格）；`scene_id`（`scene_NNNN`）是贯穿中文解说、英文解说、图片、QC、upscale、TTS、字幕、剪映时间线的唯一主键，禁止用文件名排序推断对应关系。
+
+流程契约（详见 `SKILLS/narration-adapter|scene-planner|asset-producer|single-scene-director|video-producer`）：
+
+1. Source Parser（复用现有 ingestion）→ Story Bible。
+2. Narration Adapter：`chapters/chNN/narration/scenes.json` 中文解说稿（保留剧情/因果/动机/伏笔，不是摘要）。
+3. Scene Planner：按 story/visual beat 分镜（禁止固定句数切割），产出 `single-scene-storyboard.json` + `continuity-ledger.json`（受伤/武器/换装状态持续，直到显式 cleared）。
+4. Asset Producer：FLUX.2 Klein 4B 生成 identity/wardrobe/expressions/settings/props 资产，注册到 `visual-bible/asset-registry.json`（DRAFT→APPROVED→LOCKED）。
+5. **Gate 1（hard）**：`visual-bible/STYLE_APPROVED` + `visual-bible/REFERENCE_ASSETS_APPROVED` 缺失时禁止批量生图（`python3 -m novel_to_comic approve-assets`）。
+6. Single Scene Director：每 scene 一份 `director-brief`，显式标注 image 1 = identity / image 2 = outfit / image 3 = environment / image 4 = style；镜头轮换防止单调。
+7. FLUX.2 Klein 4B 本地生图（默认 1024×1536 draft，seed 按 scene 确定），Image QC（PASS/RETRY/MANUAL_REVIEW）+ Targeted Regeneration（max_retry 默认 3，超过转人工）。
+8. 仅 QC PASS 图片用 RealESRGAN_x4plus_anime_6B 4× 放大到 `images/final/`。
+9. scene 级中→英翻译（禁止整本一次翻译再切分）+ `translation/terminology.json` 术语统一。
+10. Kokoro-82M 本地 TTS（默认 af_heart），每 scene 一个 WAV；字幕时间以实际 WAV duration 为准；输出 en/zh/bilingual SRT（默认英文轨，中文必须保留）。
+11. Scene Manifest（`chapters/chNN/video/scene-manifest.json`）汇总全部对应关系。
+12. **Gate 2（hard）**：Pilot（默认 15 个连续 scene）审核通过后 `approve-pilot` 创建 `PILOT_APPROVED`，才允许整本无人值守生产。
+13. Jianying Exporter：`exports/jianying/<project>/` 可继续编辑的剪映草稿 + `export-report.json`。
+
+断点续跑：重跑时 manifest 中已全 PASS 的 scene 绝不重做，从第一个未完成 scene 继续；单 scene 可 `regenerate --image|--translation|--tts|--subtitle`。旧模式（manga_page、color_comic、webtoon、storyboard_only）继续可用。
+
 ## Hard Rules
 
 - Do not alter the source story's plot, cast, or ending.
@@ -129,4 +151,19 @@ python3 TOOLS/check_director_briefs.py chapters/ch01/director-briefs
 python3 TOOLS/bind.py chapters/ch01/finished-pages --book-slug my-comic
 python3 TOOLS/check_state.py .
 python3 -m unittest discover -s tests -v
+```
+
+Single scene video pipeline CLI（在 `TOOLS/` 目录下运行）：
+
+```bash
+python3 -m novel_to_comic ingest path/to/novel.txt
+python3 TOOLS/check_scenes.py chapters/ch001/narration/scenes.json
+python3 -m novel_to_comic prepare-assets
+python3 -m novel_to_comic approve-assets          # Gate 1
+python3 -m novel_to_comic pilot --chapter ch001
+python3 -m novel_to_comic approve-pilot           # Gate 2
+python3 -m novel_to_comic run --chapter ch001
+python3 -m novel_to_comic regenerate scene_0021 --chapter ch001 --image
+python3 -m novel_to_comic export-jianying --chapter ch001
+python3 -m novel_to_comic status
 ```
