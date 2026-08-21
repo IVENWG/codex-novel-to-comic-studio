@@ -48,6 +48,17 @@ class RealEsrganUpscaler(BaseUpscaler):
             architecture = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=16, upscale=4, act_type="prelu")
 
         weights_path = Path(self.weights_dir) / f"{self.model}.pth"
+        if not weights_path.exists():
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            url_map = {
+                "RealESRGAN_x4plus_anime_6B": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+                "RealESRGAN_x4plus": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+            }
+            url = url_map.get(self.model)
+            if url:
+                import urllib.request
+                urllib.request.urlretrieve(url, str(weights_path))
+
         self._upscaler = RealESRGANer(
             scale=4,
             model_path=str(weights_path),
