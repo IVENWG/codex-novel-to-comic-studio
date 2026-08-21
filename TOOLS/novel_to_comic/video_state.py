@@ -45,11 +45,14 @@ def _mtime(path: Path) -> float | None:
 
 def scene_artifacts(chapter_dir: str | Path, scene_id: str) -> dict[str, Path]:
     chapter_dir = Path(chapter_dir)
+    final_img = chapter_dir / "images" / "final" / f"{scene_id}.webp"
+    if not final_img.exists():
+        final_img = chapter_dir / "images" / "final" / f"{scene_id}.png"
     return {
         "director": chapter_dir / "director-briefs" / f"{scene_id}-director-brief.json",
         "draft_image": chapter_dir / "images" / "draft" / f"{scene_id}.png",
         "image_qc": chapter_dir / "qc" / f"{scene_id}.qc.json",
-        "upscale": chapter_dir / "images" / "final" / f"{scene_id}.png",
+        "upscale": final_img,
         "translation": chapter_dir / "translation" / f"{scene_id}.json",
         "tts": chapter_dir / "audio" / f"{scene_id}.wav",
         "tts_meta": chapter_dir / "audio" / f"{scene_id}.json",

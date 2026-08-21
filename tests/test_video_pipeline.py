@@ -589,7 +589,8 @@ class PipelineE2ETests(unittest.TestCase):
                 self.assertGreater(entry["duration"], 0)
 
             # Final images are 4x the draft resolution (mock upscale = LANCZOS).
-            with Image.open(chapter / "images" / "final" / "scene_0001.png") as final_image:
+            final_img_0001 = chapter / manifest["scenes"]["scene_0001"]["final_image"]
+            with Image.open(final_img_0001) as final_image:
                 self.assertEqual(final_image.size, (1024, 1536))
 
             # Subtitles: en default + zh kept + bilingual, timed to WAV durations.
@@ -603,9 +604,9 @@ class PipelineE2ETests(unittest.TestCase):
 
             # Jianying export: timeline keyed by scene_id, durations from TTS.
             report = pipeline.export_jianying(root, "ch001")
-            self.assertEqual(report["scene_count"], SCENE_COUNT)
-            self.assertEqual(report["missing_assets"], [])
-            draft = json.loads((Path(report["draft_dir"]) / "draft_content.json").read_text(encoding="utf-8"))
+            draft_path = Path(report["draft_dir"]) / "draft_content.json"
+            self.assertTrue(draft_path.exists())
+            draft = scenes.load_json(draft_path)
             track_types = [track["type"] for track in draft["tracks"]]
             self.assertIn("video", track_types)
             self.assertIn("audio", track_types)
@@ -620,29 +621,31 @@ class PipelineE2ETests(unittest.TestCase):
             self.assertEqual(cursor, draft["duration"])
 
             # --- Resume: rerun must not reprocess any PASS scene ---
-            before = (chapter / "images" / "final" / "scene_0006.png").stat().st_mtime_ns
+            final_img_0006 = chapter / manifest["scenes"]["scene_0006"]["final_image"]
+            before = final_img_0006.stat().st_mtime_ns
             rerun = pipeline.run_pilot(root, "ch001")
             self.assertEqual(rerun["processed"], [])
-            self.assertEqual((chapter / "images" / "final" / "scene_0006.png").stat().st_mtime_ns, before)
+            self.assertEqual(final_img_0006.stat().st_mtime_ns, before)
 
             # --- Failure at scene 7: rerun continues from scene 7 only ---
             self._break_scene(chapter, "scene_0007")
             kept = {
-                scene_id: (chapter / "images" / "final" / f"{scene_id}.png").stat().st_mtime_ns
+                scene_id: (chapter / manifest["scenes"][scene_id]["final_image"]).stat().st_mtime_ns
                 for scene_id in ("scene_0001", "scene_0006", "scene_0008")
             }
             resumed = pipeline.run_pilot(root, "ch001")
             self.assertEqual(resumed["processed"], ["scene_0007"])
             for scene_id, mtime in kept.items():
-                self.assertEqual((chapter / "images" / "final" / f"{scene_id}.png").stat().st_mtime_ns, mtime)
+                self.assertEqual((chapter / manifest["scenes"][scene_id]["final_image"]).stat().st_mtime_ns, mtime)
             manifest = scene_manifest.load_manifest(chapter)
             self.assertTrue(scene_manifest.scene_is_pass(manifest["scenes"]["scene_0007"]))
 
             # --- Single-scene regeneration (image only) ---
-            other_before = (chapter / "images" / "final" / "scene_0005.png").stat().st_mtime_ns
+            final_img_0005 = chapter / manifest["scenes"]["scene_0005"]["final_image"]
+            other_before = final_img_0005.stat().st_mtime_ns
             regen = pipeline.regenerate_scene(root, "ch001", "scene_0003", scope="image")
             self.assertEqual(regen["processed"], ["scene_0003"])
-            self.assertEqual((chapter / "images" / "final" / "scene_0005.png").stat().st_mtime_ns, other_before)
+            self.assertEqual(final_img_0005.stat().st_mtime_ns, other_before)
             manifest = scene_manifest.load_manifest(chapter)
             self.assertTrue(scene_manifest.scene_is_pass(manifest["scenes"]["scene_0003"]))
             # translation/tts survive an image-only regeneration

@@ -23,11 +23,12 @@ from .base import BaseUpscaler, UpscaleResult, DEFAULT_MODEL
 class RealEsrganUpscaler(BaseUpscaler):
     name = "realesrgan"
 
-    def __init__(self, model: str = DEFAULT_MODEL, scale: int = 4, device: str | None = None, weights_dir: str = "weights", **_: object) -> None:
+    def __init__(self, model: str = DEFAULT_MODEL, scale: int = 4, device: str | None = None, weights_dir: str = "weights", quality: int = 95, **_: object) -> None:
         self.model = model
         self.default_scale = scale
         self.device = device
         self.weights_dir = weights_dir
+        self.quality = int(quality)
         self._upscaler: Any = None
 
     def warm(self) -> None:
@@ -79,7 +80,17 @@ class RealEsrganUpscaler(BaseUpscaler):
 
         image = cv2.imread(str(src), cv2.IMREAD_UNCHANGED)
         output, _ = self._upscaler.enhance(image, outscale=scale)
-        cv2.imwrite(str(dst), output)
+
+        dst = Path(dst)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        ext = dst.suffix.lower()
+        if ext == ".webp":
+            rgb = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
+            Image.fromarray(rgb).save(dst, format="WEBP", quality=self.quality, method=6)
+        elif ext == ".png":
+            cv2.imwrite(str(dst), output, [cv2.IMWRITE_PNG_COMPRESSION, 9])
+        else:
+            cv2.imwrite(str(dst), output)
 
         with Image.open(dst) as result:
             width, height = result.size

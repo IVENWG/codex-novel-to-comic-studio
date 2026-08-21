@@ -18,6 +18,7 @@ class MockUpscaler(BaseUpscaler):
     def _upscale(self, src: Path, dst: Path, scale: int) -> UpscaleResult:
         with Image.open(src) as image:
             resized = image.resize((image.width * scale, image.height * scale), Image.LANCZOS)
-            resized.save(dst, format="PNG")
+            dst_format = "WEBP" if dst.suffix.lower() == ".webp" else "PNG"
+            resized.save(dst, format=dst_format)
             width, height = resized.size
         return UpscaleResult(path=str(dst), width=width, height=height, scale=scale, provider=self.name, model=self.model)

@@ -63,6 +63,8 @@
     "provider": "realesrgan",
     "model": "RealESRGAN_x4plus_anime_6B",
     "scale": 4,
+    "format": "webp",
+    "quality": 95,
     "only_after_qc_pass": true
   },
   "translation": {

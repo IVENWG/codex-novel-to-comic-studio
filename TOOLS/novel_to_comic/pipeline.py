@@ -234,8 +234,14 @@ def process_scene_image(
         director.write_director_brief(chapter_dir, brief)
 
     # -- 3. upscale (only QC PASS) ---------------------------------------------
-    final_path = chapter_dir / "images" / "final" / f"{scene_id}.png"
     upscale_config = preferences.get("upscale", {})
+    fmt = upscale_config.get("format", "webp").lower().lstrip(".")
+    final_rel = f"images/final/{scene_id}.{fmt}"
+    final_path = chapter_dir / final_rel
+    if not final_path.exists() and fmt == "webp" and (chapter_dir / f"images/final/{scene_id}.png").exists():
+        final_path = chapter_dir / f"images/final/{scene_id}.png"
+        final_rel = f"images/final/{scene_id}.png"
+
     if entry.get("image_qc") == "PASS" and upscale_config.get("enabled", True):
         if not final_path.exists():
             result = providers["upscaler"].upscale(
@@ -245,7 +251,7 @@ def process_scene_image(
             )
             _update_scene_log(chapter_dir, scene_id, "upscale", {"size": [result.width, result.height], "provider": result.provider})
         entry["upscale_status"] = "PASS"
-        entry["final_image"] = f"images/final/{scene_id}.png"
+        entry["final_image"] = final_rel
     else:
         entry["upscale_status"] = "SKIPPED" if entry.get("image_qc") == "PASS" else "BLOCKED"
 
