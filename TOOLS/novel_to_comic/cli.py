@@ -157,42 +157,48 @@ def cmd_make_voice_samples(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="novel_to_comic", description="Novel -> English comic explainer video pipeline")
-    parser.add_argument("--root", default=".", help="Project root directory")
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--root", default=".", help="Project root directory")
+
+    parser = argparse.ArgumentParser(
+        prog="novel_to_comic",
+        description="Novel -> English comic explainer video pipeline",
+        parents=[common],
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    ingest = sub.add_parser("ingest", help="Parse TXT/EPUB into source/")
+    ingest = sub.add_parser("ingest", parents=[common], help="Parse TXT/EPUB into source/")
     ingest.add_argument("source", help="Path to the .txt or .epub novel")
     ingest.set_defaults(func=cmd_ingest)
 
-    status = sub.add_parser("status", help="Show single_scene pipeline state")
+    status = sub.add_parser("status", parents=[common], help="Show single_scene pipeline state")
     status.add_argument("--chapter", default=None)
     status.set_defaults(func=cmd_status)
 
-    validate = sub.add_parser("validate-narration", help="Validate chapter narration scenes")
+    validate = sub.add_parser("validate-narration", parents=[common], help="Validate chapter narration scenes")
     validate.add_argument("--chapter", required=True)
     validate.set_defaults(func=cmd_validate_narration)
 
-    prepare = sub.add_parser("prepare-assets", help="Check asset registry and gate status")
+    prepare = sub.add_parser("prepare-assets", parents=[common], help="Check asset registry and gate status")
     prepare.add_argument("--chapter", default=None)
     prepare.set_defaults(func=cmd_prepare_assets)
 
-    approve_assets = sub.add_parser("approve-assets", help="Gate 1: lock approved visual assets")
+    approve_assets = sub.add_parser("approve-assets", parents=[common], help="Gate 1: lock approved visual assets")
     approve_assets.set_defaults(func=cmd_approve_assets)
 
-    pilot = sub.add_parser("pilot", help="Run 10-20 pilot scenes end to end")
+    pilot = sub.add_parser("pilot", parents=[common], help="Run 10-20 pilot scenes end to end")
     pilot.add_argument("--chapter", required=True)
     pilot.add_argument("--scene-count", type=int, default=None)
     pilot.set_defaults(func=cmd_pilot)
 
-    approve_pilot = sub.add_parser("approve-pilot", help="Gate 2: allow whole-book production")
+    approve_pilot = sub.add_parser("approve-pilot", parents=[common], help="Gate 2: allow whole-book production")
     approve_pilot.set_defaults(func=cmd_approve_pilot)
 
-    run = sub.add_parser("run", help="Unattended batch production (needs PILOT_APPROVED)")
+    run = sub.add_parser("run", parents=[common], help="Unattended batch production (needs PILOT_APPROVED)")
     run.add_argument("--chapter", required=True)
     run.set_defaults(func=cmd_run)
 
-    regenerate = sub.add_parser("regenerate", help="Regenerate one scene only")
+    regenerate = sub.add_parser("regenerate", parents=[common], help="Regenerate one scene only")
     regenerate.add_argument("scene_id")
     regenerate.add_argument("--chapter", required=True)
     regenerate.add_argument("--image", action="store_true")
@@ -201,12 +207,12 @@ def build_parser() -> argparse.ArgumentParser:
     regenerate.add_argument("--subtitle", action="store_true")
     regenerate.set_defaults(func=cmd_regenerate)
 
-    export = sub.add_parser("export-jianying", help="Build a Jianying draft from the manifest")
+    export = sub.add_parser("export-jianying", parents=[common], help="Build a Jianying draft from the manifest")
     export.add_argument("--chapter", required=True)
     export.add_argument("--project-name", default=None)
     export.set_defaults(func=cmd_export_jianying)
 
-    voices = sub.add_parser("make-voice-samples", help="Generate narrator voice candidates (Kokoro)")
+    voices = sub.add_parser("make-voice-samples", parents=[common], help="Generate narrator voice candidates (Kokoro)")
     voices.add_argument("--voices", default=",".join(DEFAULT_VOICE_CANDIDATES), help="Comma-separated Kokoro voice ids")
     voices.add_argument("--text", default=DEFAULT_SAMPLE_TEXT, help="Storytelling sample sentence")
     voices.set_defaults(func=cmd_make_voice_samples)

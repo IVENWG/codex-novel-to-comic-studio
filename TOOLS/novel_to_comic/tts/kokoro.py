@@ -47,9 +47,11 @@ class KokoroTTS(BaseTTS):
             raise RuntimeError(
                 "kokoro provider needs the kokoro package: pip install kokoro soundfile"
             ) from error
-        lang_code = self.default_language.split("-")[0] if self.default_language else "e"
-        # Kokoro lang codes: 'e' = American English
-        self._pipeline = KPipeline(lang_code="e" if lang_code == "en" else lang_code)
+        lang_code = self.default_language.split("-")[0] if self.default_language else "a"
+        # Kokoro lang codes: 'a' = American English, 'b' = British English
+        if lang_code in ("en", "e", "a"):
+            lang_code = "a"
+        self._pipeline = KPipeline(lang_code=lang_code)
 
     def release(self) -> None:
         self._pipeline = None
@@ -57,6 +59,7 @@ class KokoroTTS(BaseTTS):
     def _synthesize(self, request: TTSRequest) -> TTSResult:
         self.warm()
         import soundfile as sf
+        import numpy as np
 
         voice = request.voice or self.default_voice
         speed = request.speed or self.default_speed
@@ -64,7 +67,12 @@ class KokoroTTS(BaseTTS):
         audio = None
         word_timestamps: list[dict[str, Any]] = []
         for _graphemes, _phonemes, chunk in self._pipeline(request.text, voice=voice, speed=speed):
-            audio = chunk.audio if audio is None else _concat(audio, chunk.audio)
+            raw_audio = getattr(chunk, "audio", chunk)
+            if hasattr(raw_audio, "detach"):
+                chunk_arr = raw_audio.detach().cpu().numpy()
+            else:
+                chunk_arr = np.asarray(raw_audio)
+            audio = chunk_arr if audio is None else _concat(audio, chunk_arr)
             for word in getattr(chunk, "words", []) or []:
                 word_timestamps.append(
                     {
