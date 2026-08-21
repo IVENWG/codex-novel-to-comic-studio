@@ -112,14 +112,26 @@ class Flux2KleinRenderer(BaseRenderer):
         init_image = self._compose_reference_init(request)
         if init_image is not None:
             kwargs["image"] = init_image
-            kwargs["strength"] = 0.85
+            import inspect
+            sig = inspect.signature(self._pipeline.__call__)
+            if "strength" in sig.parameters:
+                kwargs["strength"] = 0.85
 
         output = self._pipeline(**kwargs)
         image = output.images[0]
+        from PIL.PngImagePlugin import PngInfo
+        info = PngInfo()
+        info.add_text("ntc:prompt", request.prompt[:2000])
+        info.add_text("ntc:seed", str(seed))
+        info.add_text("ntc:references", json.dumps(
+            [{"role": reference.role, "asset_id": reference.asset_id, "path": reference.path}
+             for reference in request.references],
+            ensure_ascii=False,
+        )[:2000])
 
         output_path = Path(request.output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        image.save(output_path, format="PNG")
+        image.save(output_path, format="PNG", pnginfo=info)
 
         return RenderResult(
             path=str(output_path),

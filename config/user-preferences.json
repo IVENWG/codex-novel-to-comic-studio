@@ -55,7 +55,7 @@
     "width": 1024,
     "height": 1536,
     "device": "cuda",
-    "steps": 28,
+    "steps": 8,
     "seed_policy": "deterministic_by_scene"
   },
   "upscale": {

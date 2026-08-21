@@ -109,10 +109,11 @@ class IndexTTSTTS(BaseTTS):
             kwargs["use_fp16"] = bool(self.use_fp16)
         if "use_qwen_emo" in sig.parameters:
             kwargs["use_qwen_emo"] = bool(self.use_scene_emotion)
-        if self.cfg_path and "cfg_path" in sig.parameters:
-            kwargs["cfg_path"] = self.cfg_path
-        if self.device and "device" in sig.parameters:
-            kwargs["device"] = self.device
+        device = self.device
+        if device == "auto" or not device:
+            device = None
+        if device and "device" in sig.parameters:
+            kwargs["device"] = device
         self._pipeline = IndexTTS_cls(**kwargs)
 
     def release(self) -> None:
