@@ -80,19 +80,40 @@ class IndexTTSTTS(BaseTTS):
                 "audio-voice/README.md."
             )
         try:
-            from indextts.infer import IndexTTS2
+            try:
+                from indextts.infer_v2_5 import IndexTTS2 as IndexTTS_cls
+            except ImportError:
+                try:
+                    from indextts.infer_v2 import IndexTTS2 as IndexTTS_cls
+                except ImportError:
+                    import indextts.infer as infer_mod
+                    IndexTTS_cls = getattr(infer_mod, "IndexTTS2", getattr(infer_mod, "IndexTTS", None))
+            if IndexTTS_cls is None:
+                raise ImportError("IndexTTS class not found in indextts modules")
         except ImportError as error:  # pragma: no cover - GPU machine only
             raise RuntimeError(
                 "indextts provider needs the index-tts package. Install: "
                 "git clone https://github.com/index-tts/index-tts && pip install -e index-tts, "
                 "then download IndexTeam/IndexTTS-2.5 weights into checkpoints/."
             ) from error
-        kwargs: dict[str, Any] = {"model_dir": self.model_dir, "use_fp16": self.use_fp16}
-        if self.cfg_path:
+        import inspect
+        sig = inspect.signature(IndexTTS_cls.__init__)
+        kwargs: dict[str, Any] = {
+            "model_dir": self.model_dir,
+        }
+        if "use_cuda_kernel" in sig.parameters:
+            kwargs["use_cuda_kernel"] = False
+        if "use_bf16" in sig.parameters:
+            kwargs["use_bf16"] = bool(self.use_fp16)
+        elif "use_fp16" in sig.parameters:
+            kwargs["use_fp16"] = bool(self.use_fp16)
+        if "use_qwen_emo" in sig.parameters:
+            kwargs["use_qwen_emo"] = bool(self.use_scene_emotion)
+        if self.cfg_path and "cfg_path" in sig.parameters:
             kwargs["cfg_path"] = self.cfg_path
-        if self.device:
+        if self.device and "device" in sig.parameters:
             kwargs["device"] = self.device
-        self._pipeline = IndexTTS2(**kwargs)
+        self._pipeline = IndexTTS_cls(**kwargs)
 
     def release(self) -> None:
         self._pipeline = None
@@ -107,26 +128,36 @@ class IndexTTSTTS(BaseTTS):
         duration_factor = float(request.speed or self.default_speed or 1.0)
         duration_factor = min(2.0, max(0.5, duration_factor))
 
-        kwargs: dict[str, Any] = {
-            "spk_audio_prompt": str(self.reference_audio),
+        lang = LANGUAGE_MAP.get((request.language or self.default_language or "").lower(), "auto")
+        ref_audio = str(self.reference_audio)
+        emotion = str((request.metadata or {}).get("emotion") or "").strip()
+        import inspect
+        infer_sig = inspect.signature(self._pipeline.infer)
+        infer_kwargs: dict[str, Any] = {
             "text": request.text,
             "output_path": str(output_path),
-            "duration_factor": duration_factor,
-            "lang": LANGUAGE_MAP.get((request.language or self.default_language or "").lower(), "auto"),
         }
-        emotion = str((request.metadata or {}).get("emotion") or "").strip()
+        if "spk_audio_prompt" in infer_sig.parameters:
+            infer_kwargs["spk_audio_prompt"] = ref_audio
+        elif "audio_prompt" in infer_sig.parameters:
+            infer_kwargs["audio_prompt"] = ref_audio
+        if "lang" in infer_sig.parameters:
+            infer_kwargs["lang"] = lang
+        if "duration_factor" in infer_sig.parameters:
+            infer_kwargs["duration_factor"] = duration_factor
         if self.use_scene_emotion and emotion:
-            kwargs.update({"use_emo_text": True, "emo_text": emotion, "emo_alpha": self.emo_alpha})
+            if "use_emo_text" in infer_sig.parameters:
+                infer_kwargs["use_emo_text"] = True
+            if "emo_text" in infer_sig.parameters:
+                infer_kwargs["emo_text"] = emotion
+            if "emo_alpha" in infer_sig.parameters:
+                infer_kwargs["emo_alpha"] = self.emo_alpha
 
         try:
-            self._pipeline.infer(**kwargs)
+            self._pipeline.infer(**infer_kwargs)
         except TypeError:
-            # Older/newer infer() signatures: retry with the minimal contract.
-            self._pipeline.infer(
-                spk_audio_prompt=kwargs["spk_audio_prompt"],
-                text=request.text,
-                output_path=str(output_path),
-            )
+            # Fallback for any legacy positional invocation
+            self._pipeline.infer(ref_audio, request.text, str(output_path))
 
         duration = wav_duration(output_path) or 0.0
         return TTSResult(
