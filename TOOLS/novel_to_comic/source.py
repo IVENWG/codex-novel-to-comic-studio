@@ -113,13 +113,13 @@ def parse_epub(path: str | Path) -> ParsedSource:
         book_title = _epub_metadata_title(opf_root) or epub_path.stem
         manifest = _epub_manifest(opf_root, namespace)
         spine = _epub_spine(opf_root, namespace)
-        base_dir = str(Path(opf_path).parent)
+        base_dir = Path(opf_path).parent.as_posix()
         chapters: list[Chapter] = []
         for item_id in spine:
             href = manifest.get(item_id)
             if not href:
                 continue
-            item_path = str(Path(base_dir) / href) if base_dir != "." else href
+            item_path = (Path(base_dir) / href).as_posix() if base_dir != "." else href
             if item_path not in archive.namelist():
                 continue
             extractor = _HTMLTextExtractor()
