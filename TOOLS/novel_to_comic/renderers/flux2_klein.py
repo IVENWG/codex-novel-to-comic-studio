@@ -68,8 +68,21 @@ class Flux2KleinRenderer(BaseRenderer):
             ) from error
         self._torch = torch
         dtype = torch.bfloat16 if self.dtype == "bfloat16" else torch.float16
-        self._pipeline = DiffusionPipeline.from_pretrained(
+
+        model_path = self.model
+        for candidate in [
             self.model,
+            f"models/flux/{Path(self.model).name}",
+            f"../models/flux/{Path(self.model).name}",
+            f"models/{Path(self.model).name}",
+            f"../models/{Path(self.model).name}",
+        ]:
+            if Path(candidate).exists():
+                model_path = str(Path(candidate).resolve())
+                break
+
+        self._pipeline = DiffusionPipeline.from_pretrained(
+            model_path,
             torch_dtype=dtype,
         ).to(self.device)
 
